@@ -21,7 +21,8 @@ import functools
 from six.moves import range
 from six.moves import zip
 import tensorflow.compat.v1 as tf
-import tf_slim as slim
+#import tf_K as K
+import tf_keras as K
 from object_detection.core import box_predictor
 from object_detection.utils import shape_utils
 from object_detection.utils import static_shape
@@ -76,7 +77,7 @@ class ConvolutionalBoxPredictor(box_predictor.BoxPredictor):
       class_prediction_head: The head that predicts the classes.
       other_heads: A dictionary mapping head names to convolutional
         head classes.
-      conv_hyperparams_fn: A function to generate tf-slim arg_scope with
+      conv_hyperparams_fn: A function to generate tf-K arg_scope with
         hyperparameters for convolution ops.
       num_layers_before_predictor: Number of the additional conv layers before
         the predictor.
@@ -146,8 +147,8 @@ class ConvolutionalBoxPredictor(box_predictor.BoxPredictor):
              box_predictor_scopes):
       net = image_feature
       with box_predictor_scope:
-        with slim.arg_scope(self._conv_hyperparams_fn()):
-          with slim.arg_scope([slim.dropout], is_training=self._is_training):
+        with K.arg_scope(self._conv_hyperparams_fn()):
+          with K.arg_scope([K.dropout], is_training=self._is_training):
             # Add additional conv layers before the class predictor.
             features_depth = static_shape.get_depth(image_feature.get_shape())
             depth = max(min(features_depth, self._max_depth), self._min_depth)
@@ -155,7 +156,7 @@ class ConvolutionalBoxPredictor(box_predictor.BoxPredictor):
                             format(depth))
             if depth > 0 and self._num_layers_before_predictor > 0:
               for i in range(self._num_layers_before_predictor):
-                net = slim.conv2d(
+                net = K.conv2d(
                     net,
                     depth, [1, 1],
                     reuse=tf.AUTO_REUSE,
@@ -177,7 +178,7 @@ class ConvolutionalBoxPredictor(box_predictor.BoxPredictor):
     return predictions
 
 
-# TODO(rathodv): Replace with slim.arg_scope_func_key once its available
+# TODO(rathodv): Replace with K.arg_scope_func_key once its available
 # externally.
 def _arg_scope_func_key(op):
   """Returns a key that can be used to index arg_scope dictionary."""
@@ -225,7 +226,7 @@ class WeightSharedConvolutionalBoxPredictor(box_predictor.BoxPredictor):
       class_prediction_head: The head that predicts the classes.
       other_heads: A dictionary mapping head names to convolutional
         head classes.
-      conv_hyperparams_fn: A function to generate tf-slim arg_scope with
+      conv_hyperparams_fn: A function to generate tf-K arg_scope with
         hyperparameters for convolution ops.
       depth: depth of conv layers.
       num_layers_before_predictor: Number of the additional conv layers before
@@ -260,7 +261,7 @@ class WeightSharedConvolutionalBoxPredictor(box_predictor.BoxPredictor):
                                           target_channel):
     if inserted_layer_counter < 0:
       return image_feature, inserted_layer_counter
-    image_feature = slim.conv2d(
+    image_feature = K.conv2d(
         image_feature,
         target_channel, [1, 1],
         stride=1,
@@ -270,7 +271,7 @@ class WeightSharedConvolutionalBoxPredictor(box_predictor.BoxPredictor):
         scope='ProjectionLayer/conv2d_{}'.format(
             inserted_layer_counter))
     if self._apply_batch_norm:
-      image_feature = slim.batch_norm(
+      image_feature = K.batch_norm(
           image_feature,
           scope='ProjectionLayer/conv2d_{}/BatchNorm'.format(
               inserted_layer_counter))
@@ -281,9 +282,9 @@ class WeightSharedConvolutionalBoxPredictor(box_predictor.BoxPredictor):
     net = image_feature
     for i in range(self._num_layers_before_predictor):
       if self._use_depthwise:
-        conv_op = functools.partial(slim.separable_conv2d, depth_multiplier=1)
+        conv_op = functools.partial(K.separable_conv2d, depth_multiplier=1)
       else:
-        conv_op = slim.conv2d
+        conv_op = K.conv2d
       net = conv_op(
           net,
           self._depth, [self._kernel_size, self._kernel_size],
@@ -293,7 +294,7 @@ class WeightSharedConvolutionalBoxPredictor(box_predictor.BoxPredictor):
           normalizer_fn=(tf.identity if self._apply_batch_norm else None),
           scope='{}/conv2d_{}'.format(tower_name_scope, i))
       if self._apply_batch_norm:
-        net = slim.batch_norm(
+        net = K.batch_norm(
             net,
             scope='{}/conv2d_{}/BatchNorm/feature_{}'.
             format(tower_name_scope, i, feature_index))
@@ -382,9 +383,9 @@ class WeightSharedConvolutionalBoxPredictor(box_predictor.BoxPredictor):
                                 num_predictions_per_location_list)):
       with tf.variable_scope('WeightSharedConvolutionalBoxPredictor',
                              reuse=tf.AUTO_REUSE):
-        with slim.arg_scope(self._conv_hyperparams_fn()):
+        with K.arg_scope(self._conv_hyperparams_fn()):
           # TODO(wangjiang) Pass is_training to the head class directly.
-          with slim.arg_scope([slim.dropout], is_training=self._is_training):
+          with K.arg_scope([K.dropout], is_training=self._is_training):
             (image_feature,
              inserted_layer_counter) = self._insert_additional_projection_layer(
                  image_feature, inserted_layer_counter, target_channel)
